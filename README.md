@@ -1,42 +1,52 @@
 # Intraday Stock Summary
 
-A React dashboard and Fastify API that summarize one month of 15-minute Yahoo Finance bars by trading day. Node.js 20 or newer is required.
+Look up a stock symbol to see daily average high and low prices and total trading volume for the past month.
 
-## Run locally
+## Run with Docker
+
+1. Start Docker Desktop and wait for it to finish starting.
+2. Open a terminal in this project folder and run:
+
+   ```sh
+   docker compose up --build
+   ```
+
+3. Open **http://localhost:8080**, enter a symbol such as `AAPL`, and select **View summary**. The first build may take a few minutes.
+4. To stop the app, press `Ctrl+C`, then run:
+
+   ```sh
+   docker compose down
+   ```
+
+If port 8080 is already in use, choose another port. For example, in PowerShell:
+
+```powershell
+$env:APP_PORT = "8081"
+docker compose up --build
+```
+
+Then open **http://localhost:8081**. In macOS or Linux shells, use `APP_PORT=8081 docker compose up --build` instead. Docker Compose defaults to port 8080 when `APP_PORT` is not set.
+
+## Run without Docker
+
+Install Node.js 20 or newer, then run:
 
 ```sh
 npm install
 npm run dev
 ```
 
-Open http://localhost:5173. The Vite development server proxies `/api` to the backend on port 3000. Run `npm test` for the test suite and `npm run build` to build both apps. Start the built API with `npm start -w backend`. Serve `frontend/dist` with a static server, configured to proxy `/api` to the API, or set `VITE_API_URL` at frontend build time to the API origin.
+Open **http://localhost:5173**. To stop the app, press `Ctrl+C`. Run `npm test` to run the tests, or `npm run build` to build both applications.
 
-Backend environment variables: `PORT` (default `3000`), `CACHE_TTL` (seconds, default `60`), and `CORS_ORIGIN` (default `http://localhost:5173`; use the frontend origin in production). Configuration is validated on startup. `GET /health` reports process health.
+## How the data is calculated
 
-## Run with Docker
+The app requests one month of 15-minute bars from Yahoo Finance. For each exchange-local date, it averages the bar lows and highs, rounds those averages to four decimal places, and sums the volumes. Bars missing a low, high, or volume are skipped. Results are sorted by date. The exchange's timezone is used for grouping, with its GMT offset as a fallback; UTC is used if neither is available.
 
-With Docker and the Compose plugin installed, run:
+Yahoo's chart API is unofficial and may change, rate-limit, or become unavailable. The API uses a timeout, one retry for transient failures, and a short in-memory cache. This data is not a guaranteed real-time feed.
 
-```sh
-docker compose up --build
-```
+## API and configuration
 
-Open http://localhost:8080. Nginx serves the frontend and proxies `/api` to the backend over the Compose network; the backend is not exposed directly on the host. Stop the containers with `docker compose down`. Set `APP_PORT` to change the host port, or `CACHE_TTL` to change the backend cache lifetime in seconds. `CORS_ORIGIN` can be set if the API needs to accept requests from a different origin. For example:
+`GET /api/v1/stocks/:symbol/intraday-summary` returns a symbol and its daily summaries. Symbols may contain 1–10 letters, dots, hyphens, or `^`. Errors use `{ "error": { "code": "...", "message": "..." } }`. `GET /health` reports backend health.
 
-```sh
-APP_PORT=8081 CACHE_TTL=120 docker compose up --build
-```
+The backend accepts `PORT` (default `3000`), `CACHE_TTL` in seconds (default `60`), and `CORS_ORIGIN` (default `http://localhost:5173`). Docker Compose sets its own frontend origin and proxies `/api` through Nginx, so no frontend API URL is needed. For a separately hosted frontend, set `VITE_API_URL` at build time to the API origin.
 
-On PowerShell, set these as environment variables (for example, `$env:APP_PORT = "8081"`) before running Compose. The frontend uses same-origin API requests in this setup, so no `VITE_API_URL` is needed.
-
-## API
-
-`GET /api/v1/stocks/:symbol/intraday-summary` returns `{ "symbol": "AAPL", "data": [{ "day": "2025-01-02", "lowAverage": 100.1234, "highAverage": 101.1234, "volume": 12345 }] }`. Symbols contain 1–10 letters, dots, hyphens, or `^`. Errors use `{ "error": { "code": "...", "message": "..." } }`. Invalid symbols return 400; missing symbols return 404; provider failures return 502 or 503.
-
-For each exchange-local date, low and high averages are the arithmetic means of the corresponding 15-minute bar lows and highs, rounded to four decimal places. Volume is the sum of bar volumes. Bars missing any of those fields are skipped. Results are sorted by day. The provider's IANA exchange timezone is used for date grouping, including daylight saving changes; its GMT offset is the fallback. If neither is present, UTC is used. Empty valid data produces an empty array.
-
-Yahoo's chart API is unofficial and may change, rate-limit, or become unavailable. The backend uses a timeout, one retry for transient failures, and a short in-memory cache. Data should not be treated as investment advice or a guaranteed real-time feed. The provider and cache interfaces allow replacements without changing aggregation or routes.
-
-## Next steps
-
-For a growing deployment: shared Redis caching, rate limiting, authentication, provider fallback, observability, and OpenAPI documentation.
