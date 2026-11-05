@@ -1,5 +1,25 @@
+# Dependencies, builds, and test output
 node_modules/
 dist/
-.env
 coverage/
 *.tsbuildinfo
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+.npmrc
+.netrc
+.aws/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local configuration and logs
+compose.override.yaml
+compose.override.yml
+docker-compose.override.yaml
+docker-compose.override.yml
+*.log
